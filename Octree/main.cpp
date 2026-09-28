@@ -1,60 +1,117 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include <iomanip>
 #include "octree.hpp"
 
-int main() {
-    Point rootBottomLeft(0, 0, 0);
-    double N = 100.0;
-    Octree tree(rootBottomLeft, N);
-
-    std::cout << "--- DATOS DEL NODO RAIZ ---" << std::endl;
-    std::cout << "Medida del lado h de la raiz: " << tree.get_h() << std::endl;
-    std::cout << "Coordenada bottomLeft de la raiz: (" 
-              << tree.get_bottom_left().x << ", " 
-              << tree.get_bottom_left().y << ", " 
-              << tree.get_bottom_left().z << ")\n" << std::endl;
-
-    
-    
-    std::vector<Point> testPoints = {
-        Point(5, 5, 5),       
-        Point(12, 15, 10),    
-        Point(15, 10, 8),     
-        Point(20, 20, 20),    
-        Point(45, 45, 45),    
-        Point(80, 80, 80),    
-        Point(90, 90, 90),    
-        Point(5, 80, 5)       
-    };
-
-    std::cout << "--- INSERTANDO PUNTOS ---" << std::endl;
-    for (const auto &p : testPoints) {
-        std::cout << "Insertando: (" << p.x << ", " << p.y << ", " << p.z << ")... ";
-        tree.insert(p);
-        std::cout << "OK" << std::endl;
+std::string formatDoubleWithComma(double value) {
+    std::ostringstream ss;
+    ss << std::fixed << std::setprecision(3) << value;
+    std::string str = ss.str();
+    size_t decimalPointPos = str.find('.');
+    if (decimalPointPos != std::string::npos) {
+        str[decimalPointPos] = ',';
     }
-    std::cout << std::endl;
+    return str;
+}
 
+std::vector<Point> loadPointsFromFile(const std::string& filePath, Point& outBottomLeft, double& outH) {
+    std::ifstream file(filePath);
+    std::vector<Point> points;
     
-    std::cout << "--- ESTRUCTURA DEL OCTREE ---" << std::endl;
-    tree.print();
-    std::cout << std::endl;
-
+    if (!file.is_open()) {
+        std::cerr << "Error: No se pudo abrir el archivo " << filePath << std::endl;
+        return points;
+    }
     
-    Point A(10, 10, 10); 
-    double radius = 25.0;
-    bool found = false;
+    std::string line;
+    double minX = std::numeric_limits<double>::max();
+    double minY = std::numeric_limits<double>::max();
+    double minZ = std::numeric_limits<double>::max();
+    
+    double maxX = std::numeric_limits<double>::lowest();
+    double maxY = std::numeric_limits<double>::lowest();
+    double maxZ = std::numeric_limits<double>::lowest();
+    
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        
+        std::replace(line.begin(), line.end(), ',', ' ');
+        std::stringstream ss(line);
+        double x, y, z;
+        
+        if (ss >> x >> y >> z) {
+            points.emplace_back(x, y, z);
+            
+            minX = std::min(minX, x);
+            minY = std::min(minY, y);
+            minZ = std::min(minZ, z);
+            
+            maxX = std::max(maxX, x);
+            maxY = std::max(maxY, y);
+            maxZ = std::max(maxZ, z);
+        }
+    }
+    
+    file.close();
+    
+    if (!points.empty()) {
+        outBottomLeft = Point(minX, minY, minZ);
+        
+        double rangeX = maxX - minX;
+        double rangeY = maxY - minY;
+        double rangeZ = maxZ - minZ;
+        
+        outH = std::max({rangeX, rangeY, rangeZ}) + 0.001;
+    }
+    
+    return points;
+}
 
-    std::cout << "Buscando punto mas cercano a A(10, 10, 10) con radio " << radius << "..." << std::endl;
-    Point X = tree.find_closest(A, radius, found);
+// NUEVO: Exporta la nube de puntos a un archivo .obj separado
+void exportPointsToOBJ(const std::vector<Point>& points, const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error al crear archivo de puntos OBJ: " << filename << std::endl;
+        return;
+    }
+    for (const auto& p : points) {
+        file << "v " << p.x << " " << p.y << " " << p.z << "\n";
+    }
+    file.close();
+}
 
-    std::cout << "\n--- MAS CERCANO ---" << std::endl;
-    if (found) {
-        std::cout << "Punto X: (" << X.x << ", " << X.y << ", " << X.z << ")" << std::endl;
-        std::cout << "Lado h del nodo correspondiente a X: " << tree.get_node_h_for_point(X) << std::endl;
-    } else {
-        std::cout << "Punto X: NULL" << std::endl;
-        std::cout << "Lado h del nodo correspondiente a X: N/A" << std::endl;
+int main() {
+    Point rootBottomLeft;
+    double h = 0.0;
+    
+    std::cout << "--- CARGANDO PUNTOS DESDE ARCHIVO ---" << std::endl;
+    std::vector<Point> points = loadPointsFromFile("aguila.xyz", rootBottomLeft, h);
+    
+    if (points.empty()) {
+        std::cerr << "Error: No se encontraron puntos validos." << std::endl;
+        return 1;
+    }
+    
+    // NUEVO: Guardar la nube de puntos del águila
+    exportPointsToOBJ(points, "aguila_puntos.obj");
+    std::cout << "Se exportaron los puntos a 'aguila_puntos.obj'." << std::endl;
+
+    // NUEVO: Exportar archivos .obj para distintas capacidades por nodo
+    std::vector<int> capacidades = {1, 5, 10, 20, 50, 100};
+    for (int cap : capacidades) {
+        Octree tree(rootBottomLeft, h, cap);
+        for (const auto& p : points) {
+            tree.insert(p);
+        }
+        
+        std::string filename = "octree_cap" + std::to_string(cap) + ".obj";
+        tree.export_obj(filename);
+        std::cout << "Generado: " << filename << " (Capacidad por nodo: " << cap << ")" << std::endl;
     }
 
     return 0;

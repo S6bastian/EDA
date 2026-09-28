@@ -4,22 +4,19 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
 #include <string>
-//   z x
-//   |/
-//   ----y
 
-
-struct Point{
+struct Point {
    double x;
    double y;
    double z;
 
-   Point() : x(-1), y(-1), z(-1) {};
+   Point() : x(-1), y(-1), z(-1) {}
    Point(double a, double b, double c) : x(a), y(b), z(c) {}
 
-   Point& operator=(const Point &other){
-      if(this != &other){
+   Point& operator=(const Point &other) {
+      if (this != &other) {
          this->x = other.x;
          this->y = other.y;
          this->z = other.z;
@@ -27,41 +24,40 @@ struct Point{
       return *this;
    }
 
-   bool operator==(const Point &other) const{
+   bool operator==(const Point &other) const {
       return this->x == other.x && this->y == other.y && this->z == other.z;
    }
 };
 
-
 class Octree {
 private:
    Octree *children[8];
-   Point *points; // std::vector<Point> points
+   Point *points;
    
-   // bottomLeft y h definen el espacio(cubo más grande)
-   int capacity;
    bool isLeaf;
    Point bottomLeft;
    double h;
-   
-
-   int nPoints; // puntos ingresados.
-
+   int nPoints;
 
    double square_distance(const Point &, const Point &) const;
    double minimum_square_box_distance(const Point &) const;
    void find_closest_aux(const Point &cPoint, double &bestDistSq, Point &bestPoint, bool &found) const;
+   void export_obj_aux(std::ofstream &file, int &vertexOffset) const;
 
 public:
-   Octree(Point, double);
+   int capacity;
+   
+   Octree(const Point &bottomLeft, double h, int capacity = 5);
    ~Octree();
-   bool exist(const Point &);
+   bool exist(const Point &) const;
    void insert(const Point &);
-   Point find_closest(const Point &cPoint, double radius, bool &found); // si no hay retorna el mismo punto
+   Point find_closest(const Point &cPoint, double radius, bool &found) const;
    void print(int depth = 0) const;
    double get_h() const { return h; }
    Point get_bottom_left() const { return bottomLeft; }
    double get_node_h_for_point(const Point &p) const;
+   bool get_node_bottom_left_for_point(const Point &, Point &) const;
+   void export_obj(const std::string &filename) const;
 
    enum Octant{
       FLT = 0, // FrontLeftTop 0
