@@ -1,5 +1,5 @@
 #include "octree.hpp"
-#include <fstream>  // CORREGIDO: Inclusión necesaria para resolver std::ofstream y el operador <<
+#include <fstream>  
 #include <iostream>
 
 //###########################################################################
@@ -44,7 +44,6 @@ void Octree::find_closest_aux(const Point &cPoint, double &bestDistSq, Point &be
     }
 }
 
-// NUEVO: Método privado auxiliar para exportar los cubos de los nodos hoja
 void Octree::export_obj_aux(std::ofstream &file, int &vertexOffset) const {
     if (isLeaf) {
         // Solo exportamos si la hoja contiene al menos un punto
@@ -54,7 +53,7 @@ void Octree::export_obj_aux(std::ofstream &file, int &vertexOffset) const {
         double y = bottomLeft.y;
         double z = bottomLeft.z;
 
-        // NUEVO: Definición de los 8 vértices del cubo que abarca el nodo hoja
+        // Definición de los 8 vértices del cubo
         file << "v " << x << " " << y << " " << z << "\n";
         file << "v " << x + h << " " << y << " " << z << "\n";
         file << "v " << x + h << " " << y + h << " " << z << "\n";
@@ -66,26 +65,17 @@ void Octree::export_obj_aux(std::ofstream &file, int &vertexOffset) const {
 
         int v = vertexOffset;
 
-        // NUEVO: Definición de las 12 aristas usando líneas ('l') en formato OBJ
-        file << "l " << v << " " << v + 1 << "\n";
-        file << "l " << v + 1 << " " << v + 2 << "\n";
-        file << "l " << v + 2 << " " << v + 3 << "\n";
-        file << "l " << v + 3 << " " << v << "\n";
+        
+        file << "f " << v     << " " << v + 1 << " " << v + 2 << " " << v + 3 << "\n"; // Cara inferior (1 2 3 4)
+        file << "f " << v + 4 << " " << v + 7 << " " << v + 6 << " " << v + 5 << "\n"; // Cara superior (5 8 7 6)
+        file << "f " << v     << " " << v + 4 << " " << v + 5 << " " << v + 1 << "\n"; // Cara frontal  (1 5 6 2)
+        file << "f " << v + 1 << " " << v + 5 << " " << v + 6 << " " << v + 2 << "\n"; // Cara derecha  (2 6 7 3)
+        file << "f " << v + 2 << " " << v + 6 << " " << v + 7 << " " << v + 3 << "\n"; // Cara trasera  (3 7 8 4)
+        file << "f " << v + 4 << " " << v     << " " << v + 3 << " " << v + 7 << "\n"; // Cara izquierda(5 1 4 8)
 
-        file << "l " << v + 4 << " " << v + 5 << "\n";
-        file << "l " << v + 5 << " " << v + 6 << "\n";
-        file << "l " << v + 6 << " " << v + 7 << "\n";
-        file << "l " << v + 7 << " " << v + 4 << "\n";
-
-        file << "l " << v << " " << v + 4 << "\n";
-        file << "l " << v + 1 << " " << v + 5 << "\n";
-        file << "l " << v + 2 << " " << v + 6 << "\n";
-        file << "l " << v + 3 << " " << v + 7 << "\n";
-
-        // Incrementar offset para el siguiente cubo
+        // Incrementar el offset de vértices para el siguiente cubo
         vertexOffset += 8;
     } else {
-        // Llamada recursiva a los octantes hijos
         for (int i = 0; i < 8; i++) {
             if (children[i] != nullptr) {
                 children[i]->export_obj_aux(file, vertexOffset);
